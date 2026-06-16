@@ -103,11 +103,11 @@ module add_sub(
         end
         for (i = 0; i < `WIDTH; i = i + 1) begin
             if (`SIZE % 2 == 0)
-                out[i] = inter2[i];
+                out_real[i] = inter2_real[i];
+                out_imag[i] = inter2_imag[i];
             else
-                out[i] = inter1[i];
+                out_real[i] = inter1_real[i];
+                out_imag[i] = inter1_imag[i];
         end
     end
-
 endmodule
-
