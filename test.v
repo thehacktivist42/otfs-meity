@@ -69,13 +69,35 @@ module add_sub(
             num = 2**i;
             for (j = 0; j < `WIDTH; j = j + 1) begin
                 if (i == 0) begin
-                    inter1[j] = ((j & num) == 0) ? in[j] + in[j+num] : in[j-num] - in[j];
+                    if ((j & num) == 0) begin
+                        inter1_real[j] = in_real[j] + in_real[j + num];
+                        inter1_imag[j] = in_imag[j] + in_imag[j + num];
+                    end
+                    else begin
+                        inter1_real[j] = in_real[j - num] - in_real[j];
+                        inter1_imag[j] = in_imag[j - num] - in_imag[j];
+                    end
                 end
                 else begin
-                    if (i % 2 != 0)
-                        inter2[j] = ((j & num) == 0) ? inter1[j] + inter1[j+num] : inter1[j-num] - inter1[j];
+                    if (i % 2 != 0) begin
+                        if ((j & num == 0)) begin
+                            inter2_real[j] = inter1_real[j] + inter1_real[j + num];
+                            inter2_imag[j] = inter1_imag[j] + inter1_imag[j + num];
+                        end
+                        else begin
+                            inter2_real[j] = inter1_real[j - num] - inter1_real[j];
+                            inter2_imag[j] = inter1_imag[j - num] - inter1_imag[j];
+                        end
+                    end
                     else
-                        inter1[j] = ((j & num) == 0) ? inter2[j] + inter2[j+num] : inter2[j-num] - inter2[j];
+                        if ((j & num == 0)) begin
+                            inter1_real[j] = inter2_real[j] + inter2_real[j + num];
+                            inter1_imag[j] = inter2_imag[j] + inter2_imag[j + num];
+                        end
+                        else begin
+                            inter1_real[j] = inter2_real[j - num] - inter2_real[j];
+                            inter1_imag[j] = inter2_imag[j - num] - inter2_imag[j];
+                        end
                 end
             end
         end
@@ -86,6 +108,6 @@ module add_sub(
                 out[i] = inter1[i];
         end
     end
-    
+
 endmodule
 
