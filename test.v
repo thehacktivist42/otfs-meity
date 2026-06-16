@@ -2,10 +2,11 @@
 `define SIZE 3
 `define DATA_WIDTH 8
 `define OUT_WIDTH 24
+`define HALF_WIDTH (`WIDTH/2)
 
 module twiddle (
-    output logic signed [15:0] twiddle_real [0:3],
-    output logic signed [15:0] twiddle_imag [0:3]
+    output logic signed [15:0] twiddle_real [0:`HALF_WIDTH-1],
+    output logic signed [15:0] twiddle_imag [0:`HALF_WIDTH-1]
 );
 
     assign twiddle_real[0] = 16'sd32767;
@@ -57,7 +58,7 @@ module add_sub(
     output reg [`OUT_WIDTH-1:0] out[`WIDTH-1:0]
 );
 
-    integer i, j;
+    integer i, j, k, jump;
     reg [`SIZE-1:0] num; 
     reg [`DATA_WIDTH-1:0] inter1_real[`WIDTH-1:0];
     reg [`DATA_WIDTH-1:0] inter1_imag[`WIDTH-1:0];
@@ -67,47 +68,38 @@ module add_sub(
     always @(*) begin
         for (i = 0; i < `SIZE; i = i + 1) begin
             num = 2**i;
+            k = 0;
+            jump = `HALF_WIDTH/num;
+            for (j=0; j<`WIDTH; j= j + 1) begin
+                //multiplying twiddle factor
+                if (i==0) begin
+                end else if (i % 2 != 0) begin
+                    complex_multiply mul1(inter1_real[j], inter1_imag[j], twiddle_real[k], twiddle_imag[k], inter1_real[j], inter1_imag[j]);
+                end else begin
+                    complex_multiply mul2(inter2_real[j], inter2_imag[j], twiddle_real[k], twiddle_imag[k], inter2_real[j], inter2_imag[j]);  
+                end
+                k = k + jump; 
+                if (k > `HALF_WIDTH) k = 0;
+            end
             for (j = 0; j < `WIDTH; j = j + 1) begin
                 if (i == 0) begin
-                    if ((j & num) == 0) begin
-                        inter1_real[j] = in_real[j] + in_real[j + num];
-                        inter1_imag[j] = in_imag[j] + in_imag[j + num];
-                    end
-                    else begin
-                        inter1_real[j] = in_real[j - num] - in_real[j];
-                        inter1_imag[j] = in_imag[j - num] - in_imag[j];
-                    end
+                    inter1[j] = ((j & num) == 0) ? in[j] + in[j+num] : in[j-num] - in[j];
                 end
                 else begin
-                    if (i % 2 != 0) begin
-                        if ((j & num == 0)) begin
-                            inter2_real[j] = inter1_real[j] + inter1_real[j + num];
-                            inter2_imag[j] = inter1_imag[j] + inter1_imag[j + num];
-                        end
-                        else begin
-                            inter2_real[j] = inter1_real[j - num] - inter1_real[j];
-                            inter2_imag[j] = inter1_imag[j - num] - inter1_imag[j];
-                        end
-                    end
+                    if (i % 2 != 0)
+                        inter2[j] = ((j & num) == 0) ? inter1[j] + inter1[j+num] : inter1[j-num] - inter1[j];
                     else
-                        if ((j & num == 0)) begin
-                            inter1_real[j] = inter2_real[j] + inter2_real[j + num];
-                            inter1_imag[j] = inter2_imag[j] + inter2_imag[j + num];
-                        end
-                        else begin
-                            inter1_real[j] = inter2_real[j - num] - inter2_real[j];
-                            inter1_imag[j] = inter2_imag[j - num] - inter2_imag[j];
-                        end
+                        inter1[j] = ((j & num) == 0) ? inter2[j] + inter2[j+num] : inter2[j-num] - inter2[j];
                 end
             end
         end
         for (i = 0; i < `WIDTH; i = i + 1) begin
             if (`SIZE % 2 == 0)
-                out_real[i] = inter2_real[i];
-                out_imag[i] = inter2_imag[i];
+                out[i] = inter2[i];
             else
-                out_real[i] = inter1_real[i];
-                out_imag[i] = inter1_imag[i];
+                out[i] = inter1[i];
         end
     end
+    
 endmodule
+
