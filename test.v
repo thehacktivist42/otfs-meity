@@ -24,7 +24,7 @@ module bit_reversal(
     always @(*) begin
         for (i = 0; i < `WIDTH; i = i + 1) begin
             for (j = 0; j < `SIZE; j = j + 1) begin
-                reversed_bits[j] = in[i][`SIZE-1-j];
+                reversed_bits[j] = i[`SIZE-1-j];
                 if (reversed_bits == in[i])
                     out[i] = in[i];
                 else

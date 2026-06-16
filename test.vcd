@@ -1,5 +1,5 @@
 $date
-	Tue Jun 16 11:29:30 2026
+	Tue Jun 16 11:43:40 2026
 $end
 $version
 	Icarus Verilog
@@ -33,7 +33,7 @@ b100 &
 0%
 b11 $
 b1000 #
-b0 "
+b111 "
 bx !
 $end
 #10
