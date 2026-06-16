@@ -20,17 +20,18 @@ module twiddle (
 
 endmodule
 
-module complex_multiply(
-    input logic signed [15:0] mul1_real,
-    input logic signed [15:0] mul1_imag,
-    input logic [`DATA_WIDTH:0] mul2_real,
-    input logic [`DATA_WIDTH:0] mul2_imag,
-    output logic signed [15+`DATA_WIDTH:0] out_real,
-    output logic signed [15+`DATA_WIDTH:0] out_imag
-);
-    assign out_real = mul1_real * mul2_real + mul1_imag * mul2_imag;
-    assign out_imag = mul1_real * mul2_imag + mul1_imag * mul2_real;
-endmodule
+task complex_multiply;
+    input logic signed [15:0] mul1_real;
+    input logic signed [15:0] mul1_imag;
+    input logic signed [`DATA_WIDTH:0] mul2_real;
+    input logic signed [`DATA_WIDTH:0] mul2_imag;
+    output logic signed [17+`DATA_WIDTH:0] out_real;
+    output logic signed [17+`DATA_WIDTH:0] out_imag;
+    begin
+        out_real = (mul1_real * mul2_real) - (mul1_imag * mul2_imag);
+        out_imag = (mul1_real * mul2_imag) + (mul1_imag * mul2_real);
+    end
+endtask
 
 module bit_reversal(
     input [`SIZE-1:0] in[`WIDTH-1:0],
