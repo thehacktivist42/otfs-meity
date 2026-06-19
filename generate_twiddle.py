@@ -1,24 +1,28 @@
-import numpy as np
+import math
 
-N = 512
+WIDTH = 1024
+HALF_WIDTH = WIDTH // 2
+SCALE = 32768.0
 
-for k in range(N // 2):
-    theta = 2 * np.pi * k / N
-    
-    # Calculate continuous float values
-    cos_val = np.cos(theta)
-    sin_val = -np.sin(theta)
-    
-    # Scale to fixed-point Q15
-    q15_real = int(round(cos_val * 32768))
-    q15_imag = int(round(sin_val * 32768))
-    
-    # Saturate strictly to 16-bit signed limits [-32768, 32767]
-    q15_real = max(min(q15_real, 32767), -32768)
-    q15_imag = max(min(q15_imag, 32767), -32768)
-    
-    # Correct Verilog syntax formatting for negative numbers
-    real_str = f"-16'sd{abs(q15_real)}" if q15_real < 0 else f"16'sd{q15_real}"
-    imag_str = f"-16'sd{abs(q15_imag)}" if q15_imag < 0 else f"16'sd{q15_imag}"
-    
-    print(f"twiddle_real[{k}] = {real_str}; twiddle_imag[{k}] = {imag_str};")
+with open("data/fft/twiddles_real.hex", "w") as f_real, open("data/fft/twiddles_imag.hex", "w") as f_imag:
+    for k in range(HALF_WIDTH):
+        # Calculate complex exponential (e^(-j * 2pi * k / N))
+        angle = -2.0 * math.pi * k / WIDTH
+        
+        # Scale to Q15 format
+        real_val = round(math.cos(angle) * SCALE)
+        imag_val = round(math.sin(angle) * SCALE)
+        
+        # Handle the edge case where +1.0 * 32768 = 32768 (overflows 16-bit signed max of 32767)
+        if real_val == 32768: real_val = 32767
+        if imag_val == 32768: imag_val = 32767
+        
+        # Convert to 16-bit two's complement integer
+        real_int = int(real_val) & 0xFFFF
+        imag_int = int(imag_val) & 0xFFFF
+        
+        # Write 4-character zero-padded hex strings to the files
+        f_real.write(f"{real_int:04X}\n")
+        f_imag.write(f"{imag_int:04X}\n")
+
+print(f"Generated {HALF_WIDTH} twiddle factors.")
