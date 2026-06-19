@@ -78,7 +78,7 @@ module add_sub(
 
     endtask
 
-    always @(*) begin
+    always @(in_real[0] or in_imag[0]) begin
         for (i = 0; i < `SIZE; i = i + 1) begin
             num = 2**i;
             k = 0;
@@ -101,12 +101,13 @@ module add_sub(
             for (j = 0; j < `WIDTH; j = j + 1) begin
                 if (i == 0) begin
                     if ((j & num) == 0) begin
-                        inter1_real[j] = in_real[j] + in_real[j + num];
-                        inter1_imag[j] = in_imag[j] + in_imag[j + num];
+                        inter1_real[j] = in_real[j] + in_real[j + 1];
+                        inter1_imag[j] = in_imag[j] + in_imag[j + 1];
                     end
                     else begin
-                        inter1_real[j] = in_real[j - num] - in_real[j];
-                        inter1_imag[j] = in_imag[j - num] - in_imag[j];
+                        $display("sub");
+                        inter1_real[j] = in_real[j - 1] - in_real[j];
+                        inter1_imag[j] = in_imag[j - 1] - in_imag[j];
                     end
                 end
                 else begin
@@ -140,6 +141,7 @@ module add_sub(
                 out_real[i] = inter1_real[i];
                 out_imag[i] = inter1_imag[i];
             end
+            
         end
     end
 endmodule
