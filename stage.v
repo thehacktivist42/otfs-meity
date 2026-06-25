@@ -126,7 +126,7 @@ module stage #(
         flag = 1'b1;
         @(posedge switch_d4);
         flag = 1'b0;
-        @(posedge switch_d4);
+        repeat(STAGE) @(posedge switch_d4);
         flag = 1'b1;
     end
     assign out_real = (!rst_n | flag) ? 32'sd0 : 

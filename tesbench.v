@@ -8,7 +8,7 @@ module stage_tb;
     parameter WIDTH = 16;
     parameter IN_WIDTH = 32;       // Must be 32 to hold the shifted Q15 fractions
     parameter TWIDDLE_WIDTH = 16;
-    parameter STAGE = 1;
+    parameter STAGE = 2;
     
     // Q15 scaling factor for converting to/from floats
     localparam SCALE = 32768.0; 
