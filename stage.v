@@ -15,8 +15,8 @@ module stage #(
     input logic signed [IN_WIDTH-1:0] in_imag,
     input logic [$clog2(WIDTH) - 1:0] sample_count,
 
-    output logic signed [IN_WIDTH:0] out_real,
-    output logic signed [IN_WIDTH:0] out_imag
+    output logic signed [31:0] out_real,
+    output logic signed [31:0] out_imag
 );
 
     localparam SIZE       = $clog2(WIDTH);
@@ -47,8 +47,8 @@ module stage #(
     wire signed [DATA_WIDTH:0] subtracted_real = raw_sub_real[DATA_WIDTH:0];
     wire signed [DATA_WIDTH:0] subtracted_imag = raw_sub_imag[DATA_WIDTH:0];
 
-    wire signed [DATA_WIDTH:0] multiplied_real;
-    wire signed [DATA_WIDTH:0] multiplied_imag;
+    wire signed [31:0] multiplied_real;
+    wire signed [31:0] multiplied_imag;
 
     logic switch;
     logic switch_d1, switch_d2, switch_d3, switch_d4;
@@ -130,7 +130,7 @@ module stage #(
 
 //multiply twiddle factor with even input
     complex_multiply #(
-        .FFT_WIDTH(DATA_WIDTH + 1),
+        //.FFT_WIDTH(DATA_WIDTH + 1),
         .TWIDDLE_WIDTH(TWIDDLE_WIDTH))
         cmplx_mult_inst(
             .clk(clk),

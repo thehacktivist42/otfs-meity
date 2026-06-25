@@ -1,5 +1,5 @@
 module complex_multiply #(
-    parameter FFT_WIDTH = 20,
+    parameter FFT_WIDTH = 32,
     parameter TWIDDLE_WIDTH = 16
 )(
     input logic clk,
@@ -11,18 +11,16 @@ module complex_multiply #(
     input logic signed [FFT_WIDTH-1:0] mul2_real,
     input logic signed [FFT_WIDTH-1:0] mul2_imag,
 
-    output logic signed [FFT_WIDTH-1:0] out_real,
-    output logic signed [FFT_WIDTH-1:0] out_imag
+    output logic signed [31:0] out_real,
+    output logic signed [31:0] out_imag
 );
     localparam PROD_WIDTH = FFT_WIDTH + TWIDDLE_WIDTH;
     localparam SUM_WIDTH  = PROD_WIDTH + 1;
     assign done = 1'b0;
     logic signed [PROD_WIDTH-1:0] prr, pii, pri, pir;
     logic signed [SUM_WIDTH-1:0] real_full, imag_full;
-    logic signed [PROD_WIDTH-1:0] round_val;
-    initial begin
-        round_val = 1 << (TWIDDLE_WIDTH - 2);
-    end
+    localparam round_val = 1 << (TWIDDLE_WIDTH - 2);
+
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             prr <= '0;
@@ -38,11 +36,11 @@ module complex_multiply #(
         end
     end
 
-    assign real_full = $signed({prr[PROD_WIDTH-1], prr}) -
-                       $signed({pii[PROD_WIDTH-1], pii});
+    assign real_full = $signed({prr[47], prr}) -
+                       $signed({pii[47], pii});
 
-    assign imag_full = $signed({pri[PROD_WIDTH-1], pri}) +
-                       $signed({pir[PROD_WIDTH-1], pir});
+    assign imag_full = $signed({pri[47], pri}) +
+                       $signed({pir[47], pir});
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin

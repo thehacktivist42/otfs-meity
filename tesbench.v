@@ -15,8 +15,8 @@ module stage_tb;
 
     logic [$clog2(WIDTH)-1:0] sample_count;
 
-    logic signed [IN_WIDTH:0] out_real;
-    logic signed [IN_WIDTH:0] out_imag;
+    logic signed [31:0] out_real;
+    logic signed [31:0] out_imag;
 
     //----------------------------------------------------------
     // DUT
@@ -66,8 +66,8 @@ module stage_tb;
                      sample_count,
                      in_real,
                      in_imag,
-                     real'(out_real),
-                     real'(out_imag)
+                     real'(out_real)/32768.0,
+                     real'(out_imag)/32768.0
             );
         end
     end
