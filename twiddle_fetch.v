@@ -29,18 +29,18 @@ module twiddle_factors #(
     logic signed [TWIDDLE_WIDTH-1:0] raw_i;
     logic swap_flag;
 
-    always_ff @(posedge clk and posedge done) begin
+    always_ff @(posedge clk) begin
         raw_r <= rom_real[angle_idx[SIZE-3:0]];
         raw_i <= rom_imag[angle_idx[SIZE-3:0]];
         swap_flag <= angle_idx[SIZE-2];
     end
 
-    always_ff @((posedge clk or negedge rst_n) and posedge done) begin
+    always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             twiddle_real <= '0;
             twiddle_imag <= '0;
         end
-        else begin
+        else if (done) begin
             if (swap_flag) begin
                 twiddle_real <= raw_i;
                 twiddle_imag <= -raw_r;

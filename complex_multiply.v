@@ -12,8 +12,7 @@ module complex_multiply #(
     input logic signed [FFT_WIDTH-1:0] mul2_imag,
 
     output logic signed [FFT_WIDTH-1:0] out_real,
-    output logic signed [FFT_WIDTH-1:0] out_imag, 
-    output logic done
+    output logic signed [FFT_WIDTH-1:0] out_imag
 );
 
     localparam PROD_WIDTH = FFT_WIDTH + TWIDDLE_WIDTH;
@@ -50,8 +49,7 @@ module complex_multiply #(
         else begin
             out_real <= real_full >>> (TWIDDLE_WIDTH - 1);
             out_imag <= imag_full >>> (TWIDDLE_WIDTH - 1);
-            done <= 1'b1;
         end
     end
-    
+
 endmodule
