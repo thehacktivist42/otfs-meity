@@ -23,8 +23,8 @@ module stage #(
     localparam DATA_WIDTH = IN_WIDTH;
     localparam DELAY      = 1 << (SIZE - STAGE);
 
-    wire signed [DATA_WIDTH:0] delay_in_real;
-    wire signed [DATA_WIDTH:0] delay_in_imag;
+    wire signed [DATA_WIDTH-1:0] delay_in_real;
+    wire signed [DATA_WIDTH-1:0] delay_in_imag;
 
     // Internal wires for raw buffer output before masking
     wire signed [DATA_WIDTH:0] raw_delayed_real;
@@ -93,8 +93,8 @@ module stage #(
     end
 
     // Masked assignments: Feed zeros into the buffer when in reset to prevent X propagation
-    assign delay_in_real = (!rst_n) ? '0 : (switch_d4 ? multiplied_real[DATA_WIDTH:0] : in_real_ext);
-    assign delay_in_imag = (!rst_n) ? '0 : (switch_d4 ? multiplied_imag[DATA_WIDTH:0] : in_imag_ext);
+    assign delay_in_real = (!rst_n) ? '0 : (switch_d4 ? multiplied_real[DATA_WIDTH-1:0] : in_real_ext);
+    assign delay_in_imag = (!rst_n) ? '0 : (switch_d4 ? multiplied_imag[DATA_WIDTH-1:0] : in_imag_ext);
 
     logic signed [DATA_WIDTH:0] added_real_d1, added_real_d2;
     logic signed [DATA_WIDTH:0] added_imag_d1, added_imag_d2;
