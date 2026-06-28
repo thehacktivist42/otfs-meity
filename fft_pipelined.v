@@ -3,7 +3,7 @@
 `include "stage.v"
 
 module fft_top #(
-    parameter WIDTH = 16,
+    parameter WIDTH = 1024,
     parameter IN_WIDTH = 32,
     parameter TWIDDLE_WIDTH = 16
 )(
@@ -17,81 +17,74 @@ module fft_top #(
     output logic signed [IN_WIDTH-1:0] out_imag
 );
 
-    wire signed [IN_WIDTH-1:0] s1_to_s2_real, s1_to_s2_imag;
-    wire signed [IN_WIDTH-1:0] s2_to_s3_real, s2_to_s3_imag;
-    wire signed [IN_WIDTH-1:0] s3_to_s4_real, s3_to_s4_imag;
+    //localparameters
+    localparam NUM_STAGES = $clog2(WIDTH);
+    localparam QUARTER_WIDTH = WIDTH/4;
 
-    logic [$clog2(WIDTH)-1:0] count_stage1;
-    logic [$clog2(WIDTH)-1:0] count_stage2;
-    logic [$clog2(WIDTH)-1:0] count_stage3;
-    logic [$clog2(WIDTH)-1:0] count_stage4;
+    // Arrays to interconnect the data and control signals
+    wire signed [IN_WIDTH-1:0] stage_real [0:NUM_STAGES];
+    wire signed [IN_WIDTH-1:0] stage_imag [0:NUM_STAGES];
+    logic [$clog2(WIDTH)-1:0]  stage_count [0:NUM_STAGES];
 
-    (* ram_style="distributed" *) logic signed [TWIDDLE_WIDTH-1:0] rom_real [0:WIDTH/4-1];
-    (* ram_style="distributed" *) logic signed [TWIDDLE_WIDTH-1:0] rom_imag [0:WIDTH/4-1];
+    assign stage_real[0] = in_real;
+    assign stage_imag[0] = in_imag;
+    assign stage_count[0] = sample_count;
+
+    assign out_real = stage_real[NUM_STAGES];
+    assign out_imag = stage_imag[NUM_STAGES];
+
+    // ROM arrays for twiddle factors
+    (* ram_style="distributed" *) logic signed [TWIDDLE_WIDTH-1:0] rom_real [0:QUARTER_WIDTH-1];
+    (* ram_style="distributed" *) logic signed [TWIDDLE_WIDTH-1:0] rom_imag [0:QUARTER_WIDTH-1];
 
     initial begin
         $readmemh("data/fft/twiddles_real.hex", rom_real);
         $readmemh("data/fft/twiddles_imag.hex", rom_imag);
     end
 
-    // STAGE 1 
-    assign count_stage1 = sample_count;
-    
-    stage #(.WIDTH(WIDTH), .IN_WIDTH(IN_WIDTH), .TWIDDLE_WIDTH(TWIDDLE_WIDTH), .STAGE(1)) stage1 (
-        .clk(clk), .rst_n(rst_n),
-        .in_real(in_real), .in_imag(in_imag), .rom_imag(rom_imag), .rom_real(rom_real), .sample_count(count_stage1),
-        .out_real(s1_to_s2_real), .out_imag(s1_to_s2_imag)
-    );
+    genvar i;
+    generate
+        for (i = 1; i <= NUM_STAGES; i = i + 1) begin : gen_fft_stages
 
-    logic [$clog2(WIDTH)-1:0] s1_delay_pipe [0:11];
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) for(int j=0; j<12; j++) s1_delay_pipe[j] <= '0;
-        else begin
-            s1_delay_pipe[0] <= count_stage1;
-            for(int j=1; j<12; j++) s1_delay_pipe[j] <= s1_delay_pipe[j-1];
+            stage #(
+                .WIDTH(WIDTH), 
+                .IN_WIDTH(IN_WIDTH), 
+                .TWIDDLE_WIDTH(TWIDDLE_WIDTH), 
+                .STAGE(i)
+            ) stg_inst (
+                .clk(clk), 
+                .rst_n(rst_n),
+                .in_real(stage_real[i-1]), 
+                .in_imag(stage_imag[i-1]), 
+                .sample_count(stage_count[i-1]), 
+                .rom_imag(rom_imag), 
+                .rom_real(rom_real),
+                .out_real(stage_real[i]), 
+                .out_imag(stage_imag[i])
+            );
+
+            if (i < NUM_STAGES) begin : gen_delay
+                // Delay = (Buffer Depth of current stage) + 4 cycles
+                localparam DELAY_DEPTH = (WIDTH >> i) + 4; 
+                
+                logic [$clog2(WIDTH)-1:0] delay_pipe [0:DELAY_DEPTH-1];
+                
+                always_ff @(posedge clk or negedge rst_n) begin
+                    if (!rst_n) begin
+                        for (int j = 0; j < DELAY_DEPTH; j++) begin
+                            delay_pipe[j] <= '0;
+                        end
+                    end else begin
+                        delay_pipe[0] <= stage_count[i-1];
+                        for (int j = 1; j < DELAY_DEPTH; j++) begin
+                            delay_pipe[j] <= delay_pipe[j-1];
+                        end
+                    end
+                end
+                
+                // Connect the end of the shift register to the next stage's input
+                assign stage_count[i] = delay_pipe[DELAY_DEPTH-1];
+            end
         end
-    end
-    assign count_stage2 = s1_delay_pipe[11];
-
-    // STAGE 2 
-    stage #(.WIDTH(WIDTH), .IN_WIDTH(IN_WIDTH), .TWIDDLE_WIDTH(TWIDDLE_WIDTH), .STAGE(2)) stage2 (
-        .clk(clk), .rst_n(rst_n),
-        .in_real(s1_to_s2_real), .in_imag(s1_to_s2_imag), .sample_count(count_stage2), .rom_imag(rom_imag), .rom_real(rom_real),
-        .out_real(s2_to_s3_real), .out_imag(s2_to_s3_imag)
-    );
-
-    logic [$clog2(WIDTH)-1:0] s2_delay_pipe [0:7];
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) for(int j=0; j<8; j++) s2_delay_pipe[j] <= '0;
-        else begin
-            s2_delay_pipe[0] <= count_stage2;
-            for(int j=1; j<8; j++) s2_delay_pipe[j] <= s2_delay_pipe[j-1];
-        end
-    end
-    assign count_stage3 = s2_delay_pipe[7];
-
-    // STAGE 3 
-    stage #(.WIDTH(WIDTH), .IN_WIDTH(IN_WIDTH), .TWIDDLE_WIDTH(TWIDDLE_WIDTH), .STAGE(3)) stage3 (
-        .clk(clk), .rst_n(rst_n),
-        .in_real(s2_to_s3_real), .in_imag(s2_to_s3_imag), .sample_count(count_stage3), .rom_imag(rom_imag), .rom_real(rom_real),
-        .out_real(s3_to_s4_real), .out_imag(s3_to_s4_imag)
-    );
-
-    logic [$clog2(WIDTH)-1:0] s3_delay_pipe [0:5];
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) for(int j=0; j<6; j++) s3_delay_pipe[j] <= '0;
-        else begin
-            s3_delay_pipe[0] <= count_stage3;
-            for(int j=1; j<6; j++) s3_delay_pipe[j] <= s3_delay_pipe[j-1];
-        end
-    end
-    assign count_stage4 = s3_delay_pipe[5];
-
-    // STAGE 4
-    stage #(.WIDTH(WIDTH), .IN_WIDTH(IN_WIDTH), .TWIDDLE_WIDTH(TWIDDLE_WIDTH), .STAGE(4)) stage4 (
-        .clk(clk), .rst_n(rst_n),
-        .in_real(s3_to_s4_real), .in_imag(s3_to_s4_imag), .sample_count(count_stage4), .rom_imag(rom_imag), .rom_real(rom_real),
-        .out_real(out_real), .out_imag(out_imag)
-    );
-
+    endgenerate
 endmodule
