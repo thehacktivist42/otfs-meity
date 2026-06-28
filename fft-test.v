@@ -2,7 +2,7 @@
 
 module fft_top_tb;
 
-    parameter WIDTH = 16;
+    parameter WIDTH = 1024;
     parameter IN_WIDTH = 32;       
     parameter TWIDDLE_WIDTH = 16;
     
@@ -33,7 +33,7 @@ module fft_top_tb;
 
     initial begin
         clk = 0;
-        forever #5 clk = ~clk; // 100 MHz
+        forever #5 clk = ~clk; 
     end
 
     initial begin
@@ -70,8 +70,8 @@ module fft_top_tb;
             @(posedge clk);
         end
 
-        // Flush pipeline (Latency accumulates across all 4 stages: 12 + 8 + 6 + 5 = 31 cycles minimum)
-        repeat(75) begin
+        // Flush pipeline
+        repeat(200) begin
             in_real <= 0;
             in_imag <= 0;
             sample_count <= (sample_count + 1) % WIDTH; 

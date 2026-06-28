@@ -25,7 +25,6 @@ module stage #(
     localparam SIZE       = $clog2(WIDTH);
     localparam DATA_WIDTH = IN_WIDTH;
     localparam DELAY      = 1 << (SIZE - STAGE);
-    localparam QUARTER_WIDTH = WIDTH / 4;
 
     wire signed [DATA_WIDTH-1:0] delay_in_real;
     wire signed [DATA_WIDTH-1:0] delay_in_imag;
@@ -58,7 +57,6 @@ module stage #(
     wire signed [DATA_WIDTH - 1:0] multiplied_real;
     wire signed [DATA_WIDTH - 1:0] multiplied_imag;
 
-    logic flag;
     logic switch;
     logic switch_d1, switch_d2, switch_d3, switch_d4;
     assign switch = sample_count[SIZE - STAGE];
@@ -123,21 +121,9 @@ module stage #(
     assign delayed_real = buff_out_valid ? raw_delayed_real : '0;
     assign delayed_imag = buff_out_valid ? raw_delayed_imag : '0;
 
-    // Mask final output on reset
-    // Mask final output on reset with explicit 16-bit (15-bit extension) hardcoding
-
-always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            flag <= 1'b1;
-        end else begin
-            // For continuous hardware streaming, just let the data flow
-            flag <= 1'b0; 
-        end
-    end
-
-    assign out_real = (!rst_n | flag) ? {IN_WIDTH{1'b0}} : 
+    assign out_real = (!rst_n) ? {IN_WIDTH{1'b0}} : 
                       (switch_d4 ? added_real_d2[DATA_WIDTH-1:0]: feedback_delayed_real);
-    assign out_imag = (!rst_n | flag) ? {IN_WIDTH{1'b0}} : 
+    assign out_imag = (!rst_n) ? {IN_WIDTH{1'b0}} : 
                       (switch_d4 ? added_imag_d2[DATA_WIDTH-1:0] : feedback_delayed_imag);
 
     buffer #(.DEPTH(DELAY), .DATA_WIDTH(DATA_WIDTH))
