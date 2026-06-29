@@ -1,77 +1,103 @@
-# 1024-Point Fixed-Point FFT Hardware Implementation
+# 1024-Point Pipelined Fixed-Point FFT (Verilog/FPGA)
 
 ![Language: Verilog](https://img.shields.io/badge/Language-Verilog-blue.svg)
 ![Language: Python](https://img.shields.io/badge/Language-Python-green.svg)
 ![Language: MATLAB](https://img.shields.io/badge/Language-MATLAB-orange.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-This repository contains the hardware design, simulation testbench, and complete automated verification pipeline for a **1024-point Radix-2 Fast Fourier Transform (FFT)**. The core is implemented in Verilog using **16-bit Q15 fixed-point arithmetic** and is meticulously verified against a 64-bit double-precision floating-point MATLAB golden reference.
+A streaming, fully-pipelined **1024-point radix-2 Decimation-in-Time FFT core** written in synthesizable Verilog/SystemVerilog, built around a **Single-path Delay Feedback (SDF)** butterfly architecture. The design uses **16-bit Q15 fixed-point twiddle factors** with a **wider 36-bit internal datapath** to preserve precision across all 10 pipeline stages, and is verified end-to-end against a double-precision MATLAB golden reference through a fully automated Python/MATLAB/Verilog co-simulation pipeline.
 
 ## Table of Contents
-- [Features](#-features)
-- [Repository Structure](#-repository-structure)
-- [Prerequisites](#-prerequisites)
-- [Usage](#-usage)
-  - [Standard Verification Run](#standard-verification-run)
-  - [Randomized Stress Test](#randomized-stress-test)
-- [Verification Methodology](#-verification-methodology)
-- [Contributors](#-contributors)
+- [Architecture](#architecture)
+- [Features](#features)
+- [Repository Structure](#repository-structure)
+- [Prerequisites](#prerequisites)
+- [Usage](#usage)
+- [Verification Methodology](#verification-methodology)
+- [Design Notes](#design-notes)
+- [Contributors](#contributors)
+
+## Architecture
+
+The core (`fft_top` in `fft_pipelined.v`) instantiates `NUM_STAGES = log2(WIDTH) = 10` cascaded `stage` modules via a Verilog `generate` loop, followed by a final reordering block:
+
+```
+in_real/in_imag ──▶ [Stage 1] ─▶ [Stage 2] ─▶ ... ─▶ [Stage 10] ──▶ [Bit-Reversal] ──▶ out_real/out_imag
+```
+
+**Each butterfly stage** (`submodules/stage.v`) implements an SDF commutator:
+- A circular delay **buffer** (`submodules/buffers.v`) of depth `N / 2^stage`, with combinational reads, holds samples until their butterfly partner arrives.
+- A `sample_count`-driven `switch` bit selects between feeding the add/sub unit (`submodules/add_sub.v`) and routing data straight through a second feedback buffer.
+- The "sum" path (no twiddle needed) and "difference" path (multiplied by a twiddle factor) recombine through a registered, depth-matched delay chain so every stage adds a fixed, analytically-computed latency.
+- A `complex_multiply` unit (`submodules/complex_multiply.v`) performs the twiddle multiply using the 4-real-multiplier method, with rounding and a `>>> (TWIDDLE_WIDTH-1)` rescale back to Q15.
+
+**Twiddle factors** are generated offline (`generate_twiddle.py`) as 16-bit two's-complement Q15 hex values, but only **one quarter of the table (`N/4` entries) is stored in ROM** — `submodules/twiddle_fetch.v` reconstructs the full table at runtime using the symmetry `cos/sin(θ + 90°)` quadrant swap, cutting twiddle ROM size by 4x.
+
+**Output reordering** (`submodules/bit-reversal.v`) uses **ping-pong (double-buffered) distributed RAM**: one bank is written in natural order while the other is read out in bit-reversed order, so the core can stream continuous back-to-back frames without stalling.
 
 ## Features
-* **16-bit Q15 Fixed-Point Arithmetic**: Optimized for hardware implementation with minimal quantization loss.
-* **Automated Pipeline**: A single shell script (`run.sh`) handles stimulus generation, Verilog simulation, and Python/MATLAB error analysis.
-* **Golden Reference Verification**: Compares hardware outputs directly against a pristine MATLAB-generated ideal FFT.
-* **Quantization Noise Analysis**: Python-based scripts to automatically calculate Mean Squared Error (MSE) and Root Mean Squared Error (RMSE).
+- **Fully pipelined, streaming datapath** — accepts a new complex sample every clock cycle; no control FSM or start/done handshake required.
+- **Parameterized for any power-of-2 length** — `WIDTH`, `IN_WIDTH`, and `TWIDDLE_WIDTH` are Verilog parameters; stage count and all delay/buffer depths are derived automatically via `$clog2`.
+- **Memory-efficient twiddle ROM** — exploits quarter-wave trigonometric symmetry to store only `N/4` complex coefficients instead of `N`.
+- **Guard-bit fixed-point datapath** — 36-bit internal word width prevents bit growth/overflow from accumulating across 10 cascaded butterfly stages, while twiddle multiplication still rounds back to a 16-bit Q15 result each stage.
+- **Continuous-flow output reordering** — double-buffered RAM bit-reversal stage with zero added stall cycles between frames.
+- **Fully automated, self-checking verification pipeline** — one shell command runs RTL simulation, golden-reference generation, and quantitative error analysis.
+- **Randomized stress testing** — a `-r` flag regenerates bounded random complex test vectors for regression/Monte-Carlo-style verification.
 
 ## Repository Structure
 
 | File / Directory | Description |
 | :--- | :--- |
-| 📁 `data/fft/` | Contains generated input test vectors (`input.txt`) and reference JSONs. |
-| 📁 `results/fft/` | Destination folder for simulation outputs (`output.json`). |
-| 📄 `fft.v` | The core Verilog RTL implementing the bit-reversal and butterfly add/sub modules. |
-| 📄 `fft-test.v` | The Verilog testbench that handles file I/O and Q-format shifting. |
-| 📄 `fft_reference.m` | The MATLAB golden reference script that computes the ideal FFT and exports results. |
-| 📄 `fft_error.py` | Python script that calculates MSE and RMSE by comparing Verilog outputs to the MATLAB reference. |
-| 📄 `generate_input.py` | Python script to generate real/imaginary test vectors (e.g., sine waves or white noise). |
-| 📄 `generate_twiddle.py` | Python script to pre-calculate and generate 16-bit two's complement twiddle factors (`.hex` files). |
-| 📄 `run.sh` | The master bash script that automates the generation, simulation, and verification pipeline. |
-| 📄 `tasks.md` | Project tracking and to-do lists. |
+| 📄 `fft/fft_pipelined.v` | Top-level `fft_top` module — instantiates and pipelines all FFT stages plus the bit-reversal output stage. |
+| 📁 `fft/submodules/` | `stage.v` (SDF butterfly), `add_sub.v`, `complex_multiply.v`, `twiddle_fetch.v`, `buffers.v` (circular delay line), `bit-reversal.v` (ping-pong reorder RAM). |
+| 📄 `fft/fft-test.v` | Top-level testbench: reads `data/input.txt`, drives the DUT cycle-by-cycle, and writes results to `results/output.json`. |
+| 📁 `fft/testbenches/` | Unit-level testbench(es) for individual sub-blocks (e.g. a single butterfly `stage`). |
+| 📄 `fft/fft_reference.m` | MATLAB golden-reference script — runs double-precision `fft()` on the same input file and exports `data/ref.json`. |
+| 📄 `fft/fft_error.py` | Computes MSE, RMSE, max absolute error, and % error (relative to peak signal magnitude) between RTL and golden-reference outputs. |
+| 📄 `fft/generate_input.py` | Generates 1024 lines of bounded random complex integer test vectors (`data/input.txt`). |
+| 📄 `fft/generate_twiddle.py` | Pre-computes the `N/4` Q15 twiddle coefficients and writes them as `.hex` ROM init files. |
+| 📁 `fft/data/` | `input.txt` (stimulus), `ref.json` (MATLAB reference), `twiddles_real.hex` / `twiddles_imag.hex` (ROM contents). |
+| 📁 `fft/results/` | `output.json` — RTL simulation output, consumed by `fft_error.py`. |
+| 📄 `fft/run.sh` | Master automation script chaining stimulus generation → Verilog sim → MATLAB reference → Python error analysis. |
+| 📄 `tasks.md` | Project task tracking / roadmap. |
 
 ## Prerequisites
 
-To run the full automated verification pipeline, ensure the following are installed and added to your system `PATH`:
-
-* **Icarus Verilog** (`iverilog` & `vvp`): For compiling and simulating the RTL.
-* **MATLAB** (or GNU Octave): For generating the golden reference data.
-* **Python 3.x**: For test vector generation and error calculation.
-  * *Required pip packages*: `numpy`
+* **Icarus Verilog** (`iverilog` & `vvp`) — RTL compilation/simulation (uses `-g2012` for SystemVerilog constructs like `always_comb` and 2D array ports).
+* **MATLAB** (or GNU Octave) — golden-reference generation.
+* **Python 3.x** with `numpy` — stimulus generation and error analysis.
 
 ## Usage
 
-The entire simulation and verification flow is automated via the `run.sh` shell script.
-
-### Standard Verification Run
-To run the Verilog simulation using the existing data in `data/fft/input.txt`, followed by the MATLAB reference and Python error calculation, simply execute:
-
 ```bash
-chmod +x run.sh
+chmod +x fft/run.sh
+cd fft
+
+# Standard run — uses existing data/input.txt
 ./run.sh
-```
 
-### Randomized Stress Test
-To generate a completely new set of randomized complex inputs before running the simulation pipeline, pass the `-r` (or `--random`) flag:
-
-```bash
+# Randomized stress test — regenerates input.txt with new random vectors first
 ./run.sh -r
 ```
 
+`run.sh` performs, in order:
+1. *(optional)* `generate_input.py` — new random stimulus.
+2. `iverilog -g2012 -I submodules -o test fft_pipelined.v fft-test.v && vvp test` — compiles and simulates the RTL.
+3. MATLAB `fft_reference.m` — computes the floating-point golden reference.
+4. `fft_error.py` — compares the two outputs and reports error metrics.
+
 ## Verification Methodology
 
-1. **Stimulus Generation**: `generate_input.py` creates 1024 lines of complex base-10 integers.
-2. **Hardware Simulation**: The Verilog testbench (`fft-test.v`) reads the text inputs, injects them into the fixed-point FFT core, and writes the scaled results to a JSON file.
-3. **Golden Reference**: `fft_reference.m` processes the exact same input file using double-precision floating-point arithmetic and exports the ideal results.
-4. **Error Analysis**: `fft_error.py` parses both output sets and calculates the quantization noise. Due to the 16-bit fractional truncation inherent in the hardware butterfly stages, a small but non-zero RMSE (typically < 10 units for large signals) is expected and mathematically validates the fixed-point precision.
+1. **Stimulus generation** — `generate_input.py` writes 1024 bounded random complex integers (`±10,000`) to avoid overflow in the butterfly adders.
+2. **RTL simulation** — `fft-test.v` streams every sample into the DUT, with `FLUSH_CYCLES` analytically pre-computed from the architecture's buffer/math/ping-pong/readout latencies so the testbench knows exactly when valid output begins.
+3. **Golden reference** — `fft_reference.m` runs MATLAB's double-precision `fft()` on the identical input file.
+4. **Error analysis** — `fft_error.py` reports MSE, RMSE, max absolute error, and RMSE as a percentage of peak signal magnitude, quantifying the quantization noise introduced by 16-bit fixed-point arithmetic.
+
+## Design Notes
+
+- The SDF butterfly relies on a `sample_count`-derived `switch` signal and a chain of delayed copies (`switch_d1`–`switch_d4`) to align the add/sub mux selection with the multi-cycle latency of the adder and twiddle-multiply paths.
+- `complex_multiply.v` registers all four partial products before combining them, trading one extra pipeline cycle for better timing closure at synthesis.
+- Memories (`buffer`, twiddle ROM, bit-reversal RAM) are tagged `(* ram_style="distributed" *)`, targeting LUT-based distributed RAM rather than block RAM — appropriate given their relatively small, irregular access patterns.
 
 ## Contributors
 * **[@thehacktivist42](https://github.com/thehacktivist42)**
