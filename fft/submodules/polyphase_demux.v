@@ -19,9 +19,9 @@ module polyphase_demux #(
     // Outputs to the ping-pong memory banks
     output logic signed [IN_WIDTH - 1:0] broadcast_real,
     output logic signed [IN_WIDTH - 1:0] broadcast_imag,
-    output logic [NUM_BANKS - 1:0] bank_we, // One-hot write enable
-    output logic [$clog2(BANK_DEPTH) - 1:0] bank_waddr, // Shared write address for all banks
-    output logic ping_pong_select, // Toggles every time a full frame is written
+    output logic [NUM_BANKS - 1:0] bank_we, // One-hot write enable (column)
+    output logic [$clog2(BANK_DEPTH) - 1:0] bank_waddr, // Shared write address for all banks (row)
+    output logic ping_pong_select, // Toggles every time a row is written
     output logic frame_done // Goes high for 1 cycle when a full 2D grid is populated
     );
 
