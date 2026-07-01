@@ -1,4 +1,6 @@
-`timescale 1 ns / 1ps
+`timescale 1 ns / 1 ps
+
+// Note: This module creates a single block of dual-port RAM. It will be instantiated NUM_BANKS times in memory_bank_array.
 
 module memory_bank #(
     parameter IN_WIDTH = 36,

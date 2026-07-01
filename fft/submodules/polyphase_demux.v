@@ -1,4 +1,4 @@
-`timescale 1ns/1ps
+`timescale 1 ns / 1 ps
 
 /*
 The idea is to use a "broadcast-and-decode" architecture instead of standard 1-to-32 demultiplexing.
